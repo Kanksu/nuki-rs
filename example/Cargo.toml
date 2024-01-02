@@ -1,8 +1,16 @@
 [package]
-name = "example"
+name = "nuki"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+nuki-rs = { path = "../"}
+log ={ version = "0.4"}
+clap = { version = "4", features = ["derive"]}
+tokio ={ version = "1"}
+env_logger = { version = "0.10"}
+home = { version="0.5" }
+whoami = { version = "1"}
+anyhow = {version = "1"}
