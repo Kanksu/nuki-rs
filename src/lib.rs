@@ -26,6 +26,32 @@ use serde_json;
 
 use crate::nuki_command::*;
 
+/// NukiSmartLock represents a Nuki Smart Lock.
+/// All operations to the smart lock is performed with the structure.
+/// 
+/// Document of the BLE API from Nuki official web site:
+/// <https://developer.nuki.io/page/nuki-smart-lock-api-2/2>
+/// 
+/// # Example: Pairing
+/// 
+/// ```rust
+/// // pair device
+/// let mut nuki = NukiSmartLock::discover_nuki_device().await.unwrap();
+/// nuki.pair("TestUser").await.unwrap();
+/// 
+/// // Save the credentials to file.
+/// // The file contains the MAC adresse and the private key. 
+/// nuki.save("nuki-credentials.json").unwrap();
+/// ```
+/// 
+/// # Example: Unlock
+/// ```rust
+/// // Perfom unlock
+/// use nuki_command::LockAction;
+/// 
+/// let nuki = NukiSmartLock::load("nuki-credentials.json").unwrap();
+/// nuki.perform_lock_action(LockAction::Unlock).unwrap();
+/// ```
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct NukiSmartLock {
     address: [u8;6],
@@ -39,9 +65,10 @@ const UUID_CHAR_GDIO: Uuid =    uuid!("a92ee201-5501-11e4-916c-0800200c9a66");
 const UUID_CHAR_USDIO: Uuid =   uuid!("a92ee202-5501-11e4-916c-0800200c9a66");
 const UUID_SVC_PAIR: Uuid =     uuid!("a92ee100-5501-11e4-916c-0800200c9a66");
 
-/// Operation Nuki device with BLE API from Nuki:
-/// https://developer.nuki.io/page/nuki-smart-lock-api-2/2
 impl NukiSmartLock {
+    /// The smart lock must be paired before use.
+    /// Use ```discover_nuki_device``` to discover pairable smart lock.
+    /// The smart lock is pairable, if the center button has been pressed for more than 5 seconds.
     pub async fn pair(&mut self, name: &str) -> Result<()> {
         let p = self.connect().await?;
 
@@ -99,16 +126,33 @@ impl NukiSmartLock {
         sl
     }
 
+    /// Load credentials from file.
+    /// After pairing, the MAC address and the private key can be stores as Json file with ```NukiSmartLock::save```.
     pub fn load<P: AsRef<Path>>(pathname: &P) -> Result<Self> {
         let obj = serde_json::from_reader(std::io::BufReader::new(File::open(pathname)?))?;
         Ok(obj)
     }
 
+    /// Save credentials to a Json file.
     pub fn save<P: AsRef<Path>>(&self, pathname: &P) -> Result<()> {
         serde_json::to_writer(&File::create(pathname)?, self)?;
         Ok(())
     }
 
+    /// Perform one of the following actions:
+    /// - Unlock,
+    /// - Lock,
+    /// - Unlatch,
+    /// - LockAndGo,
+    /// - LockAnGoUnlatch,
+    /// - FullLock,
+    /// - FobAction1,
+    /// - FobAction2,
+    /// - FobAction3
+    /// 
+    /// The argument ```log_suffix``` is used for logging in Smartlock.
+    /// In Nuki App, all lock actions are logged and can be reviewed.
+    /// ```log_suffix``` appers togerther with the lock action in Nuki App.
     pub async fn perform_lock_action(&self, action: LockAction, log_suffix: &str) -> Result<()> {
          let p = self.connect().await?;
          
@@ -130,6 +174,7 @@ impl NukiSmartLock {
         Ok(())
     }
 
+    /// Get the current state of the smart lock.
     pub async fn get_status(&self) -> Result<CmdKeyturnerState0x000c> {
         let cmd_req = CmdRequestData0x0001::from(0xc);
         let body = cmd_req.encrypt(&self.get_key()?, self.authorization_id)?;
@@ -144,6 +189,7 @@ impl NukiSmartLock {
         Ok(status)
     }
 
+    /// Get battery report of the smart lock.
     pub async fn get_battery_report(&self) -> Result<CmdBatteryReport0x0011> {
         let cmd_req = CmdRequestData0x0001::from(0x11);
         let body = cmd_req.encrypt(&self.get_key()?, self.authorization_id)?;
@@ -246,6 +292,10 @@ impl NukiSmartLock {
                 self.address[3], self.address[4], self.address[5])
     }
 
+    /// If the smart lock is pairable (press the center button for 5 seconds),
+    /// the function will discover the device and returns an object.
+    /// With the object, an pair operation can be performed.
+    /// Without pairing, no other operation is possible.
     pub async fn discover_nuki_device() -> Result<Self>{
         let manager = Manager::new().await.unwrap();
     
@@ -282,11 +332,11 @@ impl NukiSmartLock {
 
 
 
-// In Nuki device, every pairing must have different App-ID.
-// New pairing will replace the old pairing with the same App-ID.
-// The App-ID will be generated from information of machine ID and user name.
-// This ensures the same user on the samte machine will always have the same App-ID,
-// with which, the user cannot have two different pairing in the Nuki device.
+/// In Nuki device, every pairing must have different App-ID.
+/// New pairing will replace the old pairing, if the App-ID provied while pairing is same.
+/// The App-ID will be generated from information of machine ID and user name.
+/// This ensures the same user on the same machine will always have the same App-ID,
+/// with which, the user cannot have two different pairing to the Nuki device.
 fn generate_app_id() -> Result<u32> {
     let uid = machine_uid::get().map_err(|e| anyhow!("Cannot get machine ID {}.", e))?;
     let uid = hex::decode(uid)?;
@@ -299,12 +349,6 @@ fn generate_app_id() -> Result<u32> {
     digest.update(user.as_bytes());
     Ok(digest.finalize())
 }
-
-// fn generate_app_name() -> String {
-//     let mut user = String::from("rs-");
-//     user.push_str(&whoami::username());
-//     user
-// }
 
 #[cfg(test)]
 mod tests {
