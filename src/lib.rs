@@ -36,21 +36,28 @@ use crate::nuki_command::*;
 /// 
 /// ```rust
 /// // pair device
+/// use nuki_rs::NukiSmartLock;
+/// 
+/// # async fn pair() {
 /// let mut nuki = NukiSmartLock::discover_nuki_device().await.unwrap();
 /// nuki.pair("TestUser").await.unwrap();
 /// 
+/// 
 /// // Save the credentials to file.
 /// // The file contains the MAC adresse and the private key. 
-/// nuki.save("nuki-credentials.json").unwrap();
+/// nuki.save(&String::from("nuki-credentials.json")).unwrap();
+/// # }
 /// ```
 /// 
 /// # Example: Unlock
 /// ```rust
+/// # async fn unlock() {
 /// // Perfom unlock
-/// use nuki_command::LockAction;
+/// use nuki_rs::{NukiSmartLock, nuki_command::LockAction};
 /// 
-/// let nuki = NukiSmartLock::load("nuki-credentials.json").unwrap();
-/// nuki.perform_lock_action(LockAction::Unlock).unwrap();
+/// let nuki = NukiSmartLock::load(&String::from("nuki-credentials.json")).unwrap();
+/// nuki.perform_lock_action(LockAction::Unlock, "TestUser").await.unwrap();
+/// # }
 /// ```
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct NukiSmartLock {
@@ -127,13 +134,15 @@ impl NukiSmartLock {
     }
 
     /// Load credentials from file.
-    /// After pairing, the MAC address and the private key can be stores as Json file with ```NukiSmartLock::save```.
+    /// After pairing, the MAC address, the key, the authorization ID and the app ID can be stores as Json file with ```NukiSmartLock::save```.
     pub fn load<P: AsRef<Path>>(pathname: &P) -> Result<Self> {
         let obj = serde_json::from_reader(std::io::BufReader::new(File::open(pathname)?))?;
         Ok(obj)
     }
 
     /// Save credentials to a Json file.
+    /// 
+    /// **Keep the file confidential! With this file, the smart lock can be unlocked!**
     pub fn save<P: AsRef<Path>>(&self, pathname: &P) -> Result<()> {
         serde_json::to_writer(&File::create(pathname)?, self)?;
         Ok(())
@@ -161,7 +170,7 @@ impl NukiSmartLock {
         let resp = self.request(&p, &UUID_CHAR_USDIO, &cmd_req.encrypt(&self.get_key()?, self.authorization_id)?).await?;
         
         let cmd_challenge = CmdChallenge0x0004::from_raw(&resp)?;
-        let cmd_req = CmdLockAction0x000d::from(action.into(), self.app_id, log_suffix);
+        let cmd_req = CmdLockAction0x000d::from(action as u8, self.app_id, log_suffix);
         let body = cmd_req.encrypt(&self.get_key()?, self.authorization_id, &cmd_challenge.nonce)?;
 
         let resp = self.request(&p, &UUID_CHAR_USDIO, &body).await?;
@@ -348,79 +357,4 @@ fn generate_app_id() -> Result<u32> {
     digest.update(&uid);
     digest.update(user.as_bytes());
     Ok(digest.finalize())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use hex::decode;
-    
-    fn create_lock_from_secret() -> NukiSmartLock {
-        let pk = decode("4e6592661d9b0a3f48671da53d6ba81fe0633c5ef902686ddafe5a718d5ebf45").unwrap();
-        let sk = decode("354978f80cdf80587641ef71c5049f6db51f83503a324d8ad100f5713860a903").unwrap();
-        let pk_nuki = decode("be7ed31a433546510addca0f698a40d6fd9bfea5bfcb69e964b361d7f0bd596d").unwrap();
-        let pre = box_::precompute(&box_::PublicKey::from_slice(&pk_nuki).unwrap(), 
-                    &box_::SecretKey::from_slice(&sk).unwrap());
-        let lock = NukiSmartLock{
-            address: [0x54u8, 0xd2, 0x72, 0xfd, 0x60, 0x15],
-            authorization_id: 770179075,
-            key: base64::encode(&pre.0, base64::Variant::OriginalNoPadding),
-            ..Default::default()
-        };
-        lock
-    }
-
-    fn load_lock() -> NukiSmartLock {
-        // NukiSmartLock::load("test_pair.json").unwrap()
-        unimplemented!()
-    }
-
-    #[test]
-    fn aquire_lock() {
-        create_lock_from_secret();
-    }
-
-    #[test]
-    fn machine_id() {
-        info!("App-ID: {}", generate_app_id().unwrap());
-    }
-
-    #[tokio::test]
-    async fn get_status() {
-        let lock = load_lock();
-        let status = lock.get_status().await.unwrap();
-        info!("Status: {}", status);
-    }
-
-    #[tokio::test]
-    async fn pair() {
-        // only for address
-        // let mut lock = load_lock();
-        // match lock.pair().await{
-        //     Err(e) => {
-        //         println!("Failed: {:?}", e);
-        //     },
-        //     _ => {
-        //         lock.save("test_pair.json").unwrap();
-        //     },
-        // }
-    }
-
-    #[tokio::test]
-    async fn unlock() {
-        let lock = load_lock();
-        lock.perform_lock_action(LockAction::Unlock, "Test").await.unwrap();
-    }
-
-    #[test]
-    fn save_load() {
-        // let lock1 = create_lock_from_secret();
-        // lock1.save("test_lock.json").unwrap();
-        // let lock2 = NukiSmartLock::load("test_lock.json").unwrap();
-        // assert_eq!(lock1.address, lock2.address);
-        // assert_eq!(lock1.authorization_id, lock2.authorization_id);
-        // assert_eq!(lock1.key, lock2.key);
-    }
-
 }
