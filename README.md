@@ -1,4 +1,12 @@
 # nuki-rs
+
+![Crates.io Version](https://img.shields.io/crates/v/nuki-rs)
+![docs.rs](https://img.shields.io/docsrs/nuki-rs)
+![Crates.io License](https://img.shields.io/crates/l/nuki-rs)
+![Crates.io Total Downloads](https://img.shields.io/crates/d/nuki-rs)
+
+
+
 Bluetooth API for Nuki Smartlock
 
 # Usage
