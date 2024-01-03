@@ -42,4 +42,22 @@ nuki unlatch
 to print command usage info:
 ```bash
 nuki --help
+
+Usage: nuki [OPTIONS] [COMMAND]
+
+Commands:
+  status   Query current status (Default command)
+  lock     Perform unlock action
+  unlock   Perfrom lock action
+  unlatch  Perfom unlatch action
+  battery  Query battery report
+  pair     Pair a Nuki Smart Lock
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+  -l, --log-level <LOG_LEVEL>  Log level (error, warn, info, debug, trace) [default: WARN]
+  -k, --key-file <KEY_FILE>    Key file, Default ~/.nuki-key
+  -h, --help                   Print help
+  -V, --version                Print version
+
 ```
