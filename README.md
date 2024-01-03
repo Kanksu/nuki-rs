@@ -13,12 +13,12 @@ Bluetooth API for Nuki Smartlock
 
 ## Pair
 ```rust
-let mut nuki = NukiSmartLock::discover_nuki_device().await.unwrap();
+let mut nuki = NukiSmartLock::discover_pairable().await.unwrap();
 nuki.pair("TestUser").await.unwrap();
 
 // Save the credentials to file.
 // The file contains the MAC adresse and the private key. 
-nuki.save("nuki-credentials.json").unwrap();
+nuki.save(&String::from("nuki-credentials.json")).unwrap();
 ```
 
 ## Perform actions
@@ -40,8 +40,8 @@ Perform one of the following actions:
 // Perfom unlock
 use nuki_command::LockAction;
 
-let nuki = NukiSmartLock::load("nuki-credentials.json").unwrap();
-nuki.perform_lock_action(LockAction::Unlock).unwrap();
+let nuki = NukiSmartLock::load(&String::from("nuki-credentials.json")).unwrap();
+nuki.perform_lock_action(LockAction::Unlock, "TestUser").unwrap();
 ```
 # Example
 
