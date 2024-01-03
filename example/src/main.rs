@@ -106,8 +106,8 @@ async fn main() -> Result<()> {
  async fn pair(key_file: &PathBuf, name: &str) -> Result<()> {
     println!("Push the Button on Nuki for 5 seconds to pair.");
     println!("Discovering pairable Nuki Smart lock...");
-    let mut nuki = NukiSmartLock::discover_nuki_device().await?;
-    println!("Pairing to Nuki: {}", nuki.address_as_string());
+    let mut nuki = NukiSmartLock::discover_pairable().await?;
+    println!("Pairing to Nuki: {}", nuki);
     nuki.pair(name).await?;
     println!("Pairing successful. User has been authorized.");
     nuki.save(key_file)?;

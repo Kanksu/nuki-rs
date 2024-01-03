@@ -25,6 +25,7 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 
 use crate::nuki_command::*;
+use std::fmt::Display;
 
 /// NukiSmartLock represents a Nuki Smart Lock.
 /// All operations to the smart lock is performed with the structure.
@@ -39,7 +40,7 @@ use crate::nuki_command::*;
 /// use nuki_rs::NukiSmartLock;
 /// 
 /// # async fn pair() {
-/// let mut nuki = NukiSmartLock::discover_nuki_device().await.unwrap();
+/// let mut nuki = NukiSmartLock::discover_pairable().await.unwrap();
 /// nuki.pair("TestUser").await.unwrap();
 /// 
 /// 
@@ -74,7 +75,7 @@ const UUID_SVC_PAIR: Uuid =     uuid!("a92ee100-5501-11e4-916c-0800200c9a66");
 
 impl NukiSmartLock {
     /// The smart lock must be paired before use.
-    /// Use ```discover_nuki_device``` to discover pairable smart lock.
+    /// Use ```discover_pairable``` to discover pairable smart lock.
     /// The smart lock is pairable, if the center button has been pressed for more than 5 seconds.
     pub async fn pair(&mut self, name: &str) -> Result<()> {
         let p = self.connect().await?;
@@ -125,12 +126,6 @@ impl NukiSmartLock {
         } else {
             Err(anyhow!("Pairing failed. Status code: {}.", msg_status.status))?
         }
-    }
-
-    pub fn new_with_address(addr: &[u8]) -> Self {
-        let mut sl = Self { ..Default::default()};
-        sl.address.copy_from_slice(addr);
-        sl
     }
 
     /// Load credentials from file.
@@ -295,17 +290,11 @@ impl NukiSmartLock {
         Err(anyhow!("Nuki smart lock not found."))?
     }
 
-    pub fn address_as_string(&self) -> String{
-        format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
-                self.address[0], self.address[1], self.address[2], 
-                self.address[3], self.address[4], self.address[5])
-    }
-
     /// If the smart lock is pairable (press the center button for 5 seconds),
     /// the function will discover the device and returns an object.
     /// With the object, an pair operation can be performed.
     /// Without pairing, no other operation is possible.
-    pub async fn discover_nuki_device() -> Result<Self>{
+    pub async fn discover_pairable() -> Result<Self>{
         let manager = Manager::new().await.unwrap();
     
         // get the first bluetooth adapter
@@ -339,6 +328,14 @@ impl NukiSmartLock {
 
 }
 
+impl Display for NukiSmartLock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
+        self.address[0], self.address[1], self.address[2], 
+        self.address[3], self.address[4], self.address[5])
+    }
+    
+}
 
 
 /// In Nuki device, every pairing must have different App-ID.
