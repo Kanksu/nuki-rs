@@ -6,7 +6,6 @@ use chrono::{Utc, prelude::*, LocalResult, FixedOffset};
 
 use anyhow::{Result, anyhow};
 
-
 #[derive(Default)]
 pub struct CmdRequestData0x0001 {
     cmd_id: u16,
@@ -352,18 +351,6 @@ impl CmdStatus0x000e {
         
         Ok(Self {status: raw[2]})
     }
-}
-
-pub enum LockAction {
-    Unlock = 0x1,
-    Lock = 0x2,
-    Unlatch = 0x3,
-    LockAndGo = 0x4,
-    LockAnGoUnlatch = 0x5,
-    FullLock = 0x6,
-    FobAction1 = 0x81,
-    FobAction2 = 0x82,
-    FobAction3 = 0x83,
 }
 
 pub struct CmdLockAction0x000d {

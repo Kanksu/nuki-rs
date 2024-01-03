@@ -3,7 +3,7 @@ use home::home_dir;
 use std::path::PathBuf;
 use whoami;
 
-use nuki_rs::{NukiSmartLock, nuki_command::LockAction};
+use nuki_rs::{NukiSmartLock, LockAction};
 use tokio;
 use clap::{Parser, Subcommand, Args};
 use env_logger::Env;

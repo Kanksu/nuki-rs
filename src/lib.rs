@@ -1,4 +1,9 @@
-pub mod nuki_command;
+//! nuki-rs implements the part of official Bluetooth API for Nuki Smart Lock.
+//! The crate provides methods to pair, query status and perform lock/unlock actions.
+//! 
+//! All methods are exploded in structure ```NukiSmartLock```.
+
+mod nuki_command;
 
 use btleplug::api::{CentralEvent, Characteristic};
 use btleplug::api::{Central, Manager as _, Peripheral as _, ScanFilter, WriteType};
@@ -335,6 +340,20 @@ impl Display for NukiSmartLock {
         self.address[3], self.address[4], self.address[5])
     }
     
+}
+
+/// ```LockAction``` represents all supported actions, which can be performed
+/// on the Nuki Smart Lock.
+pub enum LockAction {
+    Unlock = 0x1,
+    Lock = 0x2,
+    Unlatch = 0x3,
+    LockAndGo = 0x4,
+    LockAnGoUnlatch = 0x5,
+    FullLock = 0x6,
+    FobAction1 = 0x81,
+    FobAction2 = 0x82,
+    FobAction3 = 0x83,
 }
 
 
