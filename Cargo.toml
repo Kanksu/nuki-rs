@@ -4,7 +4,7 @@ version = "0.2.2"
 edition = "2021"
 license = "MIT"
 keywords = ["nuki", "smartlock", "smarthome"]
-description = "an rust implmentation for BLE API for Nuki Smart Lock"
+description = "a rust implmentation for BLE API for Nuki Smart Lock"
 repository = "https://github.com/Kanksu/nuki-rs"
 readme = "README.md"
 
