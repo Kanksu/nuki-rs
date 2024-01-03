@@ -355,32 +355,17 @@ impl CmdStatus0x000e {
 }
 
 pub enum LockAction {
-    Unlock,
-    Lock,
-    Unlatch,
-    LockAndGo,
-    LockAnGoUnlatch,
-    FullLock,
-    FobAction1,
-    FobAction2,
-    FobAction3,
+    Unlock = 0x1,
+    Lock = 0x2,
+    Unlatch = 0x3,
+    LockAndGo = 0x4,
+    LockAnGoUnlatch = 0x5,
+    FullLock = 0x6,
+    FobAction1 = 0x81,
+    FobAction2 = 0x82,
+    FobAction3 = 0x83,
 }
 
-impl Into<u8> for LockAction {
-    fn into(self) -> u8 {
-        match self {
-            Self::Unlock => 0x1,
-            Self::Lock => 0x2,
-            Self::Unlatch => 0x3,
-            Self::LockAndGo => 0x4,
-            Self::LockAnGoUnlatch => 0x5,
-            Self::FullLock => 0x6,
-            Self::FobAction1 => 0x81,
-            Self::FobAction2 => 0x82,
-            Self::FobAction3 => 0x83,
-        }
-    }
-}
 pub struct CmdLockAction0x000d {
     lock_action : u8,
     app_id: u32,
@@ -620,7 +605,7 @@ mod test {
         assert_eq!(body, body_exp);
 
         // encrypted command
-        let key = hex::decode("217FCB0F18CAF284E9BDEA0B94B83B8D10867ED706BFDEDBD2381F4CB3B8F730").unwrap();
+        let _key = hex::decode("217FCB0F18CAF284E9BDEA0B94B83B8D10867ED706BFDEDBD2381F4CB3B8F730").unwrap();
         let auth_id = 2u32;
 
         let cmd = CmdRequestData0x0001::from(0xc);
