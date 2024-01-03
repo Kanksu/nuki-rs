@@ -59,7 +59,7 @@ use std::fmt::Display;
 /// ```rust
 /// # async fn unlock() {
 /// // Perfom unlock
-/// use nuki_rs::{NukiSmartLock, nuki_command::LockAction};
+/// use nuki_rs::{NukiSmartLock, LockAction};
 /// 
 /// let nuki = NukiSmartLock::load(&String::from("nuki-credentials.json")).unwrap();
 /// nuki.perform_lock_action(LockAction::Unlock, "TestUser").await.unwrap();
