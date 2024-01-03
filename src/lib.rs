@@ -268,7 +268,9 @@ impl NukiSmartLock {
         // get the first bluetooth adapter
         let adapters = manager.adapters().await?;
         let central = adapters.into_iter().nth(0).unwrap();
-        let mut events = central.events().await?;   
+        let mut events = central.events().await?;
+
+        info!("Discovering the Nuki Smart Lock {}...", self);
 
         central.start_scan(ScanFilter::default()).await?;
         while let Some(event) = events.next().await {
@@ -282,7 +284,7 @@ impl NukiSmartLock {
                     let periph = central.peripheral(&id).await?;
                     if periph.address() == self.address.into() {
                         central.stop_scan().await?;
-                        info!("Connecting to device {}...", &periph.address());
+                        info!("Device Found. Connecting...");
                         periph.connect().await?;
                         periph.discover_services().await?;   
                         return Ok(periph)
