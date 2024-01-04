@@ -15,19 +15,16 @@ use std::path::Path;
 
 use anyhow::{anyhow, Result};
 use futures::stream::StreamExt; // for steam::next()
-use machine_uid;
 
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
 
-use hex;
 use std::time::{Duration, Instant};
 
 use crc::{Crc, CRC_32_ISCSI};
 use sodiumoxide::{base64, crypto::box_};
 
 use serde::{Deserialize, Serialize};
-use serde_json;
 
 use crate::nuki_command::*;
 use std::fmt::Display;
@@ -101,7 +98,7 @@ impl NukiSmartLock {
         let (pk, sk) = box_::gen_keypair();
         info!(
             "Generated own public key: {}",
-            base64::encode(&pk.0, base64::Variant::OriginalNoPadding)
+            base64::encode(pk.0, base64::Variant::OriginalNoPadding)
         );
         info!("Generated own secret key: [*** HIDE ***]");
         let pre = box_::precompute(
@@ -304,10 +301,8 @@ impl NukiSmartLock {
     }
 
     fn get_key(&self) -> Result<Vec<u8>> {
-        Ok(
-            base64::decode(&self.key, base64::Variant::OriginalNoPadding)
-                .map_err(|_| anyhow!("Failed to decode key."))?,
-        )
+        base64::decode(&self.key, base64::Variant::OriginalNoPadding)
+            .map_err(|_| anyhow!("Failed to decode key."))
     }
 
     async fn connect(&self) -> Result<Peripheral> {
@@ -328,18 +323,15 @@ impl NukiSmartLock {
                 central.stop_scan().await?;
                 break;
             }
-            match event {
-                CentralEvent::DeviceDiscovered(id) => {
-                    let periph = central.peripheral(&id).await?;
-                    if periph.address() == self.address.into() {
-                        central.stop_scan().await?;
-                        info!("Device Found. Connecting...");
-                        periph.connect().await?;
-                        periph.discover_services().await?;
-                        return Ok(periph);
-                    }
+            if let CentralEvent::DeviceDiscovered(id) = event {
+                let periph = central.peripheral(&id).await?;
+                if periph.address() == self.address.into() {
+                    central.stop_scan().await?;
+                    info!("Device Found. Connecting...");
+                    periph.connect().await?;
+                    periph.discover_services().await?;
+                    return Ok(periph);
                 }
-                _ => {}
             }
         }
 
@@ -361,22 +353,19 @@ impl NukiSmartLock {
         // start scanning for devices
         central.start_scan(ScanFilter::default()).await?;
         while let Some(event) = events.next().await {
-            match event {
-                CentralEvent::ServiceDataAdvertisement { id, service_data } => {
-                    for (sid, _) in &service_data {
-                        info!("{}", sid);
-                        if sid == &UUID_SVC_PAIR {
-                            central.stop_scan().await?;
-                            let p = central.peripheral(&id).await?;
-                            let nuki = Self {
-                                address: p.address().into_inner(),
-                                ..Default::default()
-                            };
-                            return Ok(nuki);
-                        }
+            if let CentralEvent::ServiceDataAdvertisement { id, service_data } = event {
+                for sid in service_data.keys() {
+                    info!("{}", sid);
+                    if sid == &UUID_SVC_PAIR {
+                        central.stop_scan().await?;
+                        let p = central.peripheral(&id).await?;
+                        let nuki = Self {
+                            address: p.address().into_inner(),
+                            ..Default::default()
+                        };
+                        return Ok(nuki);
                     }
                 }
-                _ => {}
             }
         }
         Err(anyhow!("No pairable peripherial found."))

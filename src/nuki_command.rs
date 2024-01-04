@@ -15,7 +15,7 @@ pub struct CmdRequestData0x0001 {
 impl CmdRequestData0x0001 {
     pub fn from(cmd_id: u16) -> Self {
         Self {
-            cmd_id: cmd_id,
+            cmd_id,
             ..Default::default()
         }
     }
@@ -121,7 +121,7 @@ impl CmdAuthorizationAuthenticator0x0005 {
         // CL calculates the authenticator a of r using function h1 (HMAC-SHA256)
         let auth = hmacsha256::authenticate(
             &r,
-            &hmacsha256::Key::from_slice(&key).ok_or(anyhow!("Key not valid."))?,
+            &hmacsha256::Key::from_slice(key).ok_or(anyhow!("Key not valid."))?,
         );
         assert_eq!(auth.0.len(), 32);
 
@@ -148,7 +148,7 @@ impl CmdAuthorizationData0x0006 {
         let mut name_vec = vec![0u8; 32];
         copy_from_str(&mut name_vec, name);
         Self {
-            id_type: id_type,
+            id_type,
             id,
             name: name_vec,
             nonce_k: nonce_k.to_vec(),
@@ -167,7 +167,7 @@ impl CmdAuthorizationData0x0006 {
 
         let auth = hmacsha256::authenticate(
             &r,
-            &hmacsha256::Key::from_slice(&key).ok_or(anyhow!("Key not valid."))?,
+            &hmacsha256::Key::from_slice(key).ok_or(anyhow!("Key not valid."))?,
         );
         assert_eq!(auth.0.len(), 32);
 
@@ -347,7 +347,7 @@ impl CmdKeyturnerState0x000c {
     }
 
     pub fn from_raw(raw: &[u8]) -> Result<Self> {
-        assert_command_length(&raw, std::mem::size_of::<CmdKeyturnerState0x000c>() + 2)?;
+        assert_command_length(raw, std::mem::size_of::<CmdKeyturnerState0x000c>() + 2)?;
         assert_command_id(raw, 0xc)?;
         let status = CmdKeyturnerState0x000c {
             nuki_state: raw[2],

@@ -1,11 +1,9 @@
 use home::home_dir;
 use std::path::PathBuf;
-use whoami;
 
 use clap::{Args, Parser, Subcommand};
 use env_logger::Env;
 use nuki_rs::{LockAction, NukiSmartLock};
-use tokio;
 
 use anyhow::Result;
 
