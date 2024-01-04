@@ -1,12 +1,11 @@
-
 use home::home_dir;
 use std::path::PathBuf;
 use whoami;
 
-use nuki_rs::{NukiSmartLock, LockAction};
-use tokio;
-use clap::{Parser, Subcommand, Args};
+use clap::{Args, Parser, Subcommand};
 use env_logger::Env;
+use nuki_rs::{LockAction, NukiSmartLock};
+use tokio;
 
 use anyhow::Result;
 
@@ -51,7 +50,7 @@ enum Command {
 struct PairArgs {
     /// A name which will be stored in Nuki Device (Default: system user name)
     #[arg(short, long)]
-    name: Option<String>
+    name: Option<String>,
 }
 
 #[tokio::main]
@@ -62,48 +61,50 @@ async fn main() -> Result<()> {
 
     let key_file = match app.key_file {
         Some(p) => p,
-        None => {
-            match home_dir() {
-                Some(h_dir) => h_dir.join(".nuki-key"),
-                None => PathBuf::from(".nuki-key"),
-            }
-        }
+        None => match home_dir() {
+            Some(h_dir) => h_dir.join(".nuki-key"),
+            None => PathBuf::from(".nuki-key"),
+        },
     };
 
-    println!("Using key file: {}", &key_file.as_os_str().to_string_lossy());
+    println!(
+        "Using key file: {}",
+        &key_file.as_os_str().to_string_lossy()
+    );
 
     match app.command {
         Some(Command::Lock) => {
             lock_action(&key_file, LockAction::Lock).await?;
-        },
+        }
         Some(Command::Unlock) => {
             lock_action(&key_file, LockAction::Unlock).await?;
-        },
+        }
         Some(Command::Unlatch) => {
             lock_action(&key_file, LockAction::Unlatch).await?;
-        },
+        }
         Some(Command::Pair(args)) => {
             let name = match args.name {
                 Some(n) => n,
                 None => {
-                    println!("For registgration, the system user name <{}> is used.", whoami::username());
+                    println!(
+                        "For registgration, the system user name <{}> is used.",
+                        whoami::username()
+                    );
                     whoami::username()
                 }
             };
             let registration = format!("{}@{}", name, whoami::devicename());
             pair(&key_file, &registration).await?;
-        },
-        Some(Command::Battery) => {
-            battery_report(&key_file).await?
         }
+        Some(Command::Battery) => battery_report(&key_file).await?,
         _ => {
             status(&key_file).await?;
-        },
+        }
     }
     Ok(())
- }
+}
 
- async fn pair(key_file: &PathBuf, name: &str) -> Result<()> {
+async fn pair(key_file: &PathBuf, name: &str) -> Result<()> {
     println!("Push the Button on Nuki for 5 seconds to pair.");
     println!("Discovering pairable Nuki Smart lock...");
     let mut nuki = NukiSmartLock::discover_pairable().await?;
@@ -111,28 +112,31 @@ async fn main() -> Result<()> {
     nuki.pair(name).await?;
     println!("Pairing successful. User has been authorized.");
     nuki.save(key_file)?;
-    println!("Credential key has been stored to key file: {}.", key_file.as_os_str().to_string_lossy());
+    println!(
+        "Credential key has been stored to key file: {}.",
+        key_file.as_os_str().to_string_lossy()
+    );
     Ok(())
- }
+}
 
- async fn lock_action(key_file: &PathBuf, action: LockAction) -> Result<()>{
+async fn lock_action(key_file: &PathBuf, action: LockAction) -> Result<()> {
     let nuki = NukiSmartLock::load(key_file)?;
-    nuki.perform_lock_action(action, &whoami::username()).await?;
+    nuki.perform_lock_action(action, &whoami::username())
+        .await?;
     println!("Done.");
     Ok(())
- }
+}
 
- async fn status(key_file: &PathBuf) -> Result<()> {
+async fn status(key_file: &PathBuf) -> Result<()> {
     let nuki = NukiSmartLock::load(key_file)?;
     let status = nuki.get_status().await?;
     println!("{}", status);
     Ok(())
- }
+}
 
- async fn battery_report(key_file: &PathBuf) -> Result<()> {
-
+async fn battery_report(key_file: &PathBuf) -> Result<()> {
     let nuki = NukiSmartLock::load(key_file)?;
     let report = nuki.get_battery_report().await?;
     println!("{}", report);
     Ok(())
- }
+}
