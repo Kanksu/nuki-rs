@@ -577,8 +577,8 @@ pub fn verify_crc(raw: &[u8]) -> Result<()> {
 fn copy_from_str(dest: &mut [u8], src: &str) {
     match dest.len().cmp(&src.len()) {
         Ordering::Equal => dest.copy_from_slice(src.as_bytes()),
-        Ordering::Greater =>  dest[..src.len()].copy_from_slice(src.as_bytes()),
-        Ordering::Less => dest.copy_from_slice(&src.as_bytes()[..dest.len()])
+        Ordering::Greater => dest[..src.len()].copy_from_slice(src.as_bytes()),
+        Ordering::Less => dest.copy_from_slice(&src.as_bytes()[..dest.len()]),
     }
 }
 
