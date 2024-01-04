@@ -1,6 +1,8 @@
 use crc::{Crc, CRC_16_IBM_3740};
 use sodiumoxide::{crypto::auth::hmacsha256, crypto::box_, randombytes};
 
+use std::cmp::Ordering;
+
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use chrono::{prelude::*, FixedOffset, LocalResult, Utc};
 
@@ -573,12 +575,10 @@ pub fn verify_crc(raw: &[u8]) -> Result<()> {
 }
 
 fn copy_from_str(dest: &mut [u8], src: &str) {
-    if dest.len() == src.len() {
-        dest.copy_from_slice(src.as_bytes());
-    } else if dest.len() > src.len() {
-        dest[..src.len()].copy_from_slice(src.as_bytes());
-    } else {
-        dest.copy_from_slice(&src.as_bytes()[..dest.len()]);
+    match dest.len().cmp(&src.len()) {
+        Ordering::Equal => dest.copy_from_slice(src.as_bytes()),
+        Ordering::Greater =>  dest[..src.len()].copy_from_slice(src.as_bytes()),
+        Ordering::Less => dest.copy_from_slice(&src.as_bytes()[..dest.len()])
     }
 }
 
