@@ -1,10 +1,10 @@
 use crc::{Crc, CRC_16_IBM_3740};
-use sodiumoxide::{crypto::box_, crypto::auth::hmacsha256, randombytes};
+use sodiumoxide::{crypto::auth::hmacsha256, crypto::box_, randombytes};
 
-use byteorder::{WriteBytesExt, ReadBytesExt, LittleEndian};
-use chrono::{Utc, prelude::*, LocalResult, FixedOffset};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use chrono::{prelude::*, FixedOffset, LocalResult, Utc};
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 
 #[derive(Default)]
 pub struct CmdRequestData0x0001 {
@@ -13,8 +13,11 @@ pub struct CmdRequestData0x0001 {
 }
 
 impl CmdRequestData0x0001 {
-    pub fn from(cmd_id:u16) -> Self {
-        Self { cmd_id: cmd_id, ..Default::default() }
+    pub fn from(cmd_id: u16) -> Self {
+        Self {
+            cmd_id: cmd_id,
+            ..Default::default()
+        }
     }
 
     pub fn encode(&self) -> Result<Vec<u8>> {
@@ -37,7 +40,11 @@ impl CmdRequestData0x0001 {
     pub fn encrypt(&self, key: &[u8], auth_id: u32) -> Result<Vec<u8>> {
         let pdata = self.pdata(auth_id);
         let nonce = box_::gen_nonce();
-        let cipher = box_::seal_precomputed(&pdata?, &nonce, &box_::PrecomputedKey::from_slice(key).ok_or(anyhow!("Key not valid."))?);
+        let cipher = box_::seal_precomputed(
+            &pdata?,
+            &nonce,
+            &box_::PrecomputedKey::from_slice(key).ok_or(anyhow!("Key not valid."))?,
+        );
 
         let mut body = Vec::<u8>::new();
         body.extend(&nonce.0);
@@ -48,7 +55,7 @@ impl CmdRequestData0x0001 {
     }
 }
 
-pub struct CmdPublicKey0x0003{
+pub struct CmdPublicKey0x0003 {
     pub public_key: Vec<u8>,
 }
 
@@ -56,11 +63,15 @@ impl CmdPublicKey0x0003 {
     pub fn from_raw(raw: &[u8]) -> Result<Self> {
         assert_command_length(raw, 32 + 4)?;
         assert_command_id(raw, 0x03)?;
-        Ok(Self { public_key: raw[2..raw.len()-2].to_vec()})
+        Ok(Self {
+            public_key: raw[2..raw.len() - 2].to_vec(),
+        })
     }
 
     pub fn from(pk: &[u8]) -> Self {
-        Self { public_key: pk.to_vec()}
+        Self {
+            public_key: pk.to_vec(),
+        }
     }
 
     pub fn encode(&self) -> Result<Vec<u8>> {
@@ -79,7 +90,9 @@ impl CmdChallenge0x0004 {
     pub fn from_raw(raw: &[u8]) -> Result<Self> {
         assert_command_length(raw, 32 + 4)?;
         assert_command_id(raw, 0x04)?;
-        Ok(Self { nonce: raw[2..raw.len()-2].to_vec()})
+        Ok(Self {
+            nonce: raw[2..raw.len() - 2].to_vec(),
+        })
     }
 }
 
@@ -94,7 +107,8 @@ impl CmdAuthorizationAuthenticator0x0005 {
         CmdAuthorizationAuthenticator0x0005 {
             public_key_abf: pk_abf.to_vec(),
             public_key_k: pk_k.to_vec(),
-            nonce_k: nonce_k.to_vec()}
+            nonce_k: nonce_k.to_vec(),
+        }
     }
 
     pub fn encode(&self, key: &[u8]) -> Result<Vec<u8>> {
@@ -105,7 +119,10 @@ impl CmdAuthorizationAuthenticator0x0005 {
         r.extend(&self.nonce_k);
 
         // CL calculates the authenticator a of r using function h1 (HMAC-SHA256)
-        let auth = hmacsha256::authenticate(&r, &hmacsha256::Key::from_slice(&key).ok_or(anyhow!("Key not valid."))?);
+        let auth = hmacsha256::authenticate(
+            &r,
+            &hmacsha256::Key::from_slice(&key).ok_or(anyhow!("Key not valid."))?,
+        );
         assert_eq!(auth.0.len(), 32);
 
         let mut data = vec![5, 0];
@@ -128,14 +145,14 @@ impl CmdAuthorizationData0x0006 {
     pub fn from(id_type: u8, id: u32, name: &str, nonce_k: &[u8]) -> Self {
         // TODO: wide characters must be handled here?
         // Do Nuki devices unterstand UTF-8?
-        let mut name_vec = vec![0u8;32];
+        let mut name_vec = vec![0u8; 32];
         copy_from_str(&mut name_vec, name);
-        Self{ 
-            id_type: id_type, 
-            id, 
-            name: name_vec, 
-            nonce_k: nonce_k.to_vec(), 
-            nonce_abf: randombytes::randombytes(32)
+        Self {
+            id_type: id_type,
+            id,
+            name: name_vec,
+            nonce_k: nonce_k.to_vec(),
+            nonce_abf: randombytes::randombytes(32),
         }
     }
 
@@ -147,8 +164,11 @@ impl CmdAuthorizationData0x0006 {
         r.extend(&self.name);
         r.extend(&self.nonce_abf);
         r.extend(&self.nonce_k);
-        
-        let auth = hmacsha256::authenticate(&r, &hmacsha256::Key::from_slice(&key).ok_or(anyhow!("Key not valid."))?);
+
+        let auth = hmacsha256::authenticate(
+            &r,
+            &hmacsha256::Key::from_slice(&key).ok_or(anyhow!("Key not valid."))?,
+        );
         assert_eq!(auth.0.len(), 32);
 
         let mut data = vec![6, 0];
@@ -174,27 +194,26 @@ impl CmdAuthorizationID0x0007 {
     pub fn from_raw(raw: &[u8], key: &[u8], nonce_abf: &[u8]) -> Result<Self> {
         assert_command_length(raw, 88)?;
         assert_command_id(raw, 7)?;
-        
+
         let body = &raw[2..(raw.len() - 2)];
         let auth = &body[0..32];
         let msg = &body[32..];
         let mut msg_plus_nonce = msg.to_vec();
         msg_plus_nonce.extend(nonce_abf);
         if hmacsha256::verify(
-                &hmacsha256::Tag::from_slice(auth).ok_or(anyhow!("Send not trusted."))?, 
-                &msg_plus_nonce,
-                &hmacsha256::Key::from_slice(key).ok_or(anyhow!("Send not trusted."))?) {
+            &hmacsha256::Tag::from_slice(auth).ok_or(anyhow!("Send not trusted."))?,
+            &msg_plus_nonce,
+            &hmacsha256::Key::from_slice(key).ok_or(anyhow!("Send not trusted."))?,
+        ) {
             let mut c = std::io::Cursor::new(&msg[0..4]);
             Ok(Self {
                 authorization_id: c.read_u32::<LittleEndian>()?,
                 uuid: msg[4..20].to_vec(),
-                nonce_k: msg[20..52].to_vec()
+                nonce_k: msg[20..52].to_vec(),
             })
-
         } else {
             Err(anyhow!("Send not trusted."))
         }
-
     }
 }
 
@@ -204,8 +223,11 @@ pub struct CmdAuthorizationIdConfirmation0x001e {
 }
 
 impl CmdAuthorizationIdConfirmation0x001e {
-    pub fn from(id:u32, nonce_k: &[u8])->Self {
-        Self{ authorization_id: id, nonce_k: nonce_k.to_vec() }
+    pub fn from(id: u32, nonce_k: &[u8]) -> Self {
+        Self {
+            authorization_id: id,
+            nonce_k: nonce_k.to_vec(),
+        }
     }
 
     pub fn encode(&self, key: &[u8]) -> Result<Vec<u8>> {
@@ -213,7 +235,10 @@ impl CmdAuthorizationIdConfirmation0x001e {
         tmp.write_u32::<LittleEndian>(self.authorization_id)?;
         let mut msg_to_verify = tmp.clone();
         msg_to_verify.extend(&self.nonce_k);
-        let auth = hmacsha256::authenticate(&msg_to_verify, &hmacsha256::Key::from_slice(key).ok_or(anyhow!("Key not valid."))?);
+        let auth = hmacsha256::authenticate(
+            &msg_to_verify,
+            &hmacsha256::Key::from_slice(key).ok_or(anyhow!("Key not valid."))?,
+        );
         let mut msg = vec![0x1e, 0];
         msg.extend(auth.0);
         msg.extend(&tmp);
@@ -247,19 +272,23 @@ pub struct CmdKeyturnerState0x000c {
 
 impl std::fmt::Display for CmdKeyturnerState0x000c {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, 
+        write!(
+            f,
             "Keyturner Status:\n\
             Nuki State: {}\n\
             Lock State: {}\n\
             Battery:    {}% ({})\n\
-            Time:       {}", self.interp_nuki_state(), self.interp_lock_state(),
-            self.interp_battery_level(), self.interp_battery_state(), self.interp_time()
+            Time:       {}",
+            self.interp_nuki_state(),
+            self.interp_lock_state(),
+            self.interp_battery_level(),
+            self.interp_battery_state(),
+            self.interp_time()
         )
     }
 }
 
 impl CmdKeyturnerState0x000c {
-
     fn interp_nuki_state(&self) -> &'static str {
         match self.nuki_state {
             0x00 => "Uninitialized",
@@ -302,8 +331,14 @@ impl CmdKeyturnerState0x000c {
     }
 
     fn interp_time(&self) -> String {
-        if let LocalResult::Single(dt) = Utc.with_ymd_and_hms(self.year.into(), self.month.into(), self.day.into(), 
-                self.hour.into(), self.minute.into(), self.second.into()) {
+        if let LocalResult::Single(dt) = Utc.with_ymd_and_hms(
+            self.year.into(),
+            self.month.into(),
+            self.day.into(),
+            self.hour.into(),
+            self.minute.into(),
+            self.second.into(),
+        ) {
             if let Some(offset) = FixedOffset::east_opt((self.timezone_offset as i32) * 60) {
                 return format!("{}", dt.with_timezone(&offset)).to_string();
             }
@@ -337,24 +372,23 @@ impl CmdKeyturnerState0x000c {
         };
         Ok(status)
     }
-
 }
 
 pub struct CmdStatus0x000e {
-    pub status: u8
+    pub status: u8,
 }
 
 impl CmdStatus0x000e {
     pub fn from_raw(raw: &[u8]) -> Result<Self> {
         assert_command_length(raw, 5)?;
         assert_command_id(raw, 0x0e)?;
-        
-        Ok(Self {status: raw[2]})
+
+        Ok(Self { status: raw[2] })
     }
 }
 
 pub struct CmdLockAction0x000d {
-    lock_action : u8,
+    lock_action: u8,
     app_id: u32,
     flags: u8,
     log_suffix: Vec<u8>,
@@ -362,14 +396,14 @@ pub struct CmdLockAction0x000d {
 
 impl CmdLockAction0x000d {
     pub fn from(lock_action: u8, app_id: u32, log_suffix: &str) -> Self {
-        let mut suffix = vec![0u8;20];
+        let mut suffix = vec![0u8; 20];
         copy_from_str(&mut suffix, log_suffix);
-        CmdLockAction0x000d { 
+        CmdLockAction0x000d {
             lock_action,
-            app_id, 
+            app_id,
             flags: 0,
-            log_suffix: suffix
-            }
+            log_suffix: suffix,
+        }
     }
 
     fn pdata(&self, auth_id: u32, nonce_k: &[u8]) -> Result<Vec<u8>> {
@@ -389,7 +423,11 @@ impl CmdLockAction0x000d {
     pub fn encrypt(&self, key: &[u8], auth_id: u32, nonce_k: &[u8]) -> Result<Vec<u8>> {
         let pdata = self.pdata(auth_id, nonce_k);
         let nonce = box_::gen_nonce();
-        let cipher = box_::seal_precomputed(&pdata?, &nonce, &box_::PrecomputedKey::from_slice(key).ok_or(anyhow!("Key not valid."))?);
+        let cipher = box_::seal_precomputed(
+            &pdata?,
+            &nonce,
+            &box_::PrecomputedKey::from_slice(key).ok_or(anyhow!("Key not valid."))?,
+        );
 
         let mut body = Vec::<u8>::new();
         body.extend(&nonce.0);
@@ -398,7 +436,6 @@ impl CmdLockAction0x000d {
         body.extend(&cipher);
         Ok(body)
     }
-
 }
 
 pub struct CmdBatteryReport0x0011 {
@@ -416,7 +453,8 @@ pub struct CmdBatteryReport0x0011 {
 
 impl std::fmt::Display for CmdBatteryReport0x0011 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, 
+        write!(
+            f,
             "Battery Report:\n\
             Battery drain:      {}mWs\n\
             Battery voltage:    {}mV\n\
@@ -427,10 +465,17 @@ impl std::fmt::Display for CmdBatteryReport0x0011 {
             Lock distance:      {}°\n\
             Start temperature:  {}°C\n\
             Max turn current:   {}mA\n\
-            Battery resistance: {}mOhm\n", 
-            self.battery_drain, self.battery_voltage, self.critical_state, self.lock_action,
-            self.start_voltage, self.lowest_voltage, self.lock_distance, self.start_temperature,
-            self.max_turn_current, self.battery_resistance
+            Battery resistance: {}mOhm\n",
+            self.battery_drain,
+            self.battery_voltage,
+            self.critical_state,
+            self.lock_action,
+            self.start_voltage,
+            self.lowest_voltage,
+            self.lock_distance,
+            self.start_temperature,
+            self.max_turn_current,
+            self.battery_resistance
         )
     }
 }
@@ -527,10 +572,10 @@ pub fn verify_crc(raw: &[u8]) -> Result<()> {
     }
 }
 
-fn copy_from_str(dest:&mut [u8],src:&str){
-    if dest.len() == src.len(){
+fn copy_from_str(dest: &mut [u8], src: &str) {
+    if dest.len() == src.len() {
         dest.copy_from_slice(src.as_bytes());
-    } else if dest.len() > src.len(){
+    } else if dest.len() > src.len() {
         dest[..src.len()].copy_from_slice(src.as_bytes());
     } else {
         dest.copy_from_slice(&src.as_bytes()[..dest.len()]);
@@ -551,9 +596,11 @@ pub fn decrypt_message(msg: &[u8], key: &[u8], _auth_id: u32) -> Result<Vec<u8>>
     let length = std::io::Cursor::new(&msg[28..30]).read_u16::<LittleEndian>()?;
     let cipher = &msg[30..];
     if (length as usize) == cipher.len() {
-        match box_::open_precomputed(cipher,
-                &box_::Nonce::from_slice(nonce).ok_or(anyhow!("Not supported."))?, 
-                &box_::PrecomputedKey::from_slice(key).ok_or(anyhow!("Invalid key."))?) {
+        match box_::open_precomputed(
+            cipher,
+            &box_::Nonce::from_slice(nonce).ok_or(anyhow!("Not supported."))?,
+            &box_::PrecomputedKey::from_slice(key).ok_or(anyhow!("Invalid key."))?,
+        ) {
             Ok(plain) => {
                 verify_crc(&plain)?;
                 if std::io::Cursor::new(&plain[0..4]).read_u32::<LittleEndian>()? == auth_id {
@@ -561,16 +608,13 @@ pub fn decrypt_message(msg: &[u8], key: &[u8], _auth_id: u32) -> Result<Vec<u8>>
                 } else {
                     Err(anyhow!("Sender not trusted."))
                 }
-            },
-            Err(_) => {
-                Err(anyhow!("Sender not trusted."))
             }
+            Err(_) => Err(anyhow!("Sender not trusted.")),
         }
     } else {
         Err(anyhow!("Wrong message length."))
     }
-
-} 
+}
 
 #[cfg(test)]
 mod test {
@@ -579,7 +623,9 @@ mod test {
 
     #[test]
     fn crc_verify() {
-        let data = hex::decode("03002FE57DA347CD62431528DAAC5FBB290730FFF684AFC4CFC2ED90995F58CB3B749DB9").unwrap();
+        let data =
+            hex::decode("03002FE57DA347CD62431528DAAC5FBB290730FFF684AFC4CFC2ED90995F58CB3B749DB9")
+                .unwrap();
         verify_crc(&data).unwrap();
     }
 
@@ -592,7 +638,8 @@ mod test {
         assert_eq!(body, body_exp);
 
         // encrypted command
-        let _key = hex::decode("217FCB0F18CAF284E9BDEA0B94B83B8D10867ED706BFDEDBD2381F4CB3B8F730").unwrap();
+        let _key = hex::decode("217FCB0F18CAF284E9BDEA0B94B83B8D10867ED706BFDEDBD2381F4CB3B8F730")
+            .unwrap();
         let auth_id = 2u32;
 
         let cmd = CmdRequestData0x0001::from(0xc);
@@ -614,13 +661,20 @@ mod test {
 
     #[test]
     fn command_public_key_0x0003() {
-        let pk_out = hex::decode("2FE57DA347CD62431528DAAC5FBB290730FFF684AFC4CFC2ED90995F58CB3B74").unwrap();
-        let data = hex::decode("03002FE57DA347CD62431528DAAC5FBB290730FFF684AFC4CFC2ED90995F58CB3B749DB9").unwrap();
+        let pk_out =
+            hex::decode("2FE57DA347CD62431528DAAC5FBB290730FFF684AFC4CFC2ED90995F58CB3B74")
+                .unwrap();
+        let data =
+            hex::decode("03002FE57DA347CD62431528DAAC5FBB290730FFF684AFC4CFC2ED90995F58CB3B749DB9")
+                .unwrap();
         let msg = CmdPublicKey0x0003::from_raw(&data).unwrap();
         assert_eq!(pk_out, msg.public_key.as_slice());
 
-        let pk = hex::decode("F88127CCF48023B5CBE9101D24BAA8A368DA94E8C2E3CDE2DED29CE96AB50C15").unwrap();
-        let body_exp = hex::decode("0300F88127CCF48023B5CBE9101D24BAA8A368DA94E8C2E3CDE2DED29CE96AB50C159241").unwrap();
+        let pk = hex::decode("F88127CCF48023B5CBE9101D24BAA8A368DA94E8C2E3CDE2DED29CE96AB50C15")
+            .unwrap();
+        let body_exp =
+            hex::decode("0300F88127CCF48023B5CBE9101D24BAA8A368DA94E8C2E3CDE2DED29CE96AB50C159241")
+                .unwrap();
         let msg = CmdPublicKey0x0003::from(&pk);
         let body = msg.encode().unwrap();
 
@@ -629,8 +683,12 @@ mod test {
 
     #[test]
     fn command_challenge_0x0004() {
-        let nonce_out = hex::decode("6CD4163D159050C798553EAA57E278A579AFFCBC56F09FC57FE879E51C42DF17").unwrap();
-        let data = hex::decode("04006CD4163D159050C798553EAA57E278A579AFFCBC56F09FC57FE879E51C42DF17C3DF").unwrap();
+        let nonce_out =
+            hex::decode("6CD4163D159050C798553EAA57E278A579AFFCBC56F09FC57FE879E51C42DF17")
+                .unwrap();
+        let data =
+            hex::decode("04006CD4163D159050C798553EAA57E278A579AFFCBC56F09FC57FE879E51C42DF17C3DF")
+                .unwrap();
         let msg = CmdChallenge0x0004::from_raw(&data).unwrap();
         assert_eq!(nonce_out, msg.nonce.as_slice());
     }
@@ -638,25 +696,40 @@ mod test {
     #[test]
     fn command_authorization_authentificator_0x0005() {
         let challenge = CmdChallenge0x0004::from_raw(
-                &hex::decode("04006CD4163D159050C798553EAA57E278A579AFFCBC56F09FC57FE879E51C42DF17C3DF").unwrap()
-            ).unwrap();
-        
-        let pk_abf = hex::decode("F88127CCF48023B5CBE9101D24BAA8A368DA94E8C2E3CDE2DED29CE96AB50C15").unwrap();
-        let pk_k = hex::decode("2FE57DA347CD62431528DAAC5FBB290730FFF684AFC4CFC2ED90995F58CB3B74").unwrap();
+            &hex::decode(
+                "04006CD4163D159050C798553EAA57E278A579AFFCBC56F09FC57FE879E51C42DF17C3DF",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        let pk_abf =
+            hex::decode("F88127CCF48023B5CBE9101D24BAA8A368DA94E8C2E3CDE2DED29CE96AB50C15")
+                .unwrap();
+        let pk_k = hex::decode("2FE57DA347CD62431528DAAC5FBB290730FFF684AFC4CFC2ED90995F58CB3B74")
+            .unwrap();
         let aa = CmdAuthorizationAuthenticator0x0005::from(&pk_abf, &pk_k, &challenge.nonce);
-        let key = hex::decode("217FCB0F18CAF284E9BDEA0B94B83B8D10867ED706BFDEDBD2381F4CB3B8F730").unwrap();
+        let key = hex::decode("217FCB0F18CAF284E9BDEA0B94B83B8D10867ED706BFDEDBD2381F4CB3B8F730")
+            .unwrap();
         let body = aa.encode(&key).unwrap();
-        let body_exp = hex::decode("0500B09A0D3979A029E5FD027B519EAA200BC14AD3E163D3BE4563843E021073BCB1C357").unwrap();
+        let body_exp =
+            hex::decode("0500B09A0D3979A029E5FD027B519EAA200BC14AD3E163D3BE4563843E021073BCB1C357")
+                .unwrap();
         assert_eq!(body, body_exp);
     }
 
     #[test]
     fn command_authorization_data_0x0006() {
         let challenge = CmdChallenge0x0004::from_raw(
-            &hex::decode("0400E0742CFEA39CB46109385BF91286A3C02F40EE86B0B62FC34033094DE41E2C0D7FE1").unwrap()
-        ).unwrap();
-        let key = hex::decode("217FCB0F18CAF284E9BDEA0B94B83B8D10867ED706BFDEDBD2381F4CB3B8F730").unwrap();
-    
+            &hex::decode(
+                "0400E0742CFEA39CB46109385BF91286A3C02F40EE86B0B62FC34033094DE41E2C0D7FE1",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let key = hex::decode("217FCB0F18CAF284E9BDEA0B94B83B8D10867ED706BFDEDBD2381F4CB3B8F730")
+            .unwrap();
+
         let body_exp = hex::decode("0600CF1B9E7801E3196E6594E76D57908EE500AAD5C33F4B6E0BBEA0DDEF82967BFC00000000004D6172632028546573742900000000000000000000000000000000000000000052AFE0A664B4E9B56DC6BD4CB718A6C9FED6BE17A7411072AA0D31537814057769F2").unwrap();
         let msg = CmdAuthorizationData0x0006::from(0, 0, "Marc (Test)", &challenge.nonce);
         let body = msg.encode(&key).unwrap();
@@ -689,13 +762,19 @@ mod test {
 
     #[test]
     fn command_authorization_id_0x0007() {
-        let key = hex::decode("217FCB0F18CAF284E9BDEA0B94B83B8D10867ED706BFDEDBD2381F4CB3B8F730").unwrap();
-        let nonce_abf = hex::decode("52afe0a664b4e9b56dc6bd4cb718a6c9fed6be17a7411072aa0d315378140577").unwrap();
-        let raw = hex::decode("07003A270A2E453443C3790E657CEBE634B03F01\
+        let key = hex::decode("217FCB0F18CAF284E9BDEA0B94B83B8D10867ED706BFDEDBD2381F4CB3B8F730")
+            .unwrap();
+        let nonce_abf =
+            hex::decode("52afe0a664b4e9b56dc6bd4cb718a6c9fed6be17a7411072aa0d315378140577")
+                .unwrap();
+        let raw = hex::decode(
+            "07003A270A2E453443C3790E657CEBE634B03F01\
                                             02F45681B4067C661D46E6E15EDF0200000083B3\
                                             3643C6D97EF77ED51C02A277CBF7EA479915982F\
                                             13C61D997A56678AD77791BFA7E95229A3DD34F8\
-                                            7132BF3E3C97DB9F").unwrap();
+                                            7132BF3E3C97DB9F",
+        )
+        .unwrap();
 
         let msg = CmdAuthorizationID0x0007::from_raw(&raw, &key, &nonce_abf).unwrap();
         assert_eq!(msg.authorization_id, 2);
@@ -704,10 +783,16 @@ mod test {
 
     #[test]
     fn command_authorization_id_confirm_0x001e() {
-        let nonce_k = hex::decode("ea479915982f13c61d997a56678ad77791bfa7e95229a3dd34f87132bf3e3c97").unwrap();
-        let key = hex::decode("217FCB0F18CAF284E9BDEA0B94B83B8D10867ED706BFDEDBD2381F4CB3B8F730").unwrap();
+        let nonce_k =
+            hex::decode("ea479915982f13c61d997a56678ad77791bfa7e95229a3dd34f87132bf3e3c97")
+                .unwrap();
+        let key = hex::decode("217FCB0F18CAF284E9BDEA0B94B83B8D10867ED706BFDEDBD2381F4CB3B8F730")
+            .unwrap();
         let msg = CmdAuthorizationIdConfirmation0x001e::from(2, &nonce_k);
-        let msg_exp = hex::decode("1E003A41B91A66FBC4D22EFEFBB7272140829695A3917433D5BEB981B76166D13F8A02000000CDF5").unwrap();
+        let msg_exp = hex::decode(
+            "1E003A41B91A66FBC4D22EFEFBB7272140829695A3917433D5BEB981B76166D13F8A02000000CDF5",
+        )
+        .unwrap();
         assert_eq!(msg.encode(&key).unwrap(), msg_exp);
     }
 
